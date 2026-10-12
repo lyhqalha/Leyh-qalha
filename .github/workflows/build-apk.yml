@@ -30,11 +30,12 @@ steps:
     run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
   - name: Extract project
+    shell: bash
     run: |
       set -e
       unzip -q leyh-qalha-project-upload.zip -d work
       PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
-      test -n "$PACKAGE_FILE"
+      test -n "$PACKAGE_FILE" || { echo "package.json not found"; exit 1; }
       echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
 
   - name: Install dependencies
@@ -43,6 +44,7 @@ steps:
 
   - name: Build APK
     working-directory: ${{ env.PROJECT_DIR }}
+    shell: bash
     run: |
       set -e
       npm run build
