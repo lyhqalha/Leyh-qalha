@@ -20,10 +20,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - name: Prepare Android SDK
+      - name: Accept Android licenses
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1)
+          echo "sdkmanager=$SDKM"
+          if [ -n "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
       - name: Install and build
         working-directory: ${{ env.PROJ_DIR }}
         run: |
