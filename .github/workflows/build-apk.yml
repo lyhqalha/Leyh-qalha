@@ -28,13 +28,25 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-35
-            build-tools;35.0.0
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          set -e
+
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
+            -type f -name sdkmanager | sort -V | tail -n 1)"
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found"
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;35.0.0"
 
       - name: Extract project
         shell: bash
@@ -45,21 +57,24 @@ jobs:
 
           if [ ! -f "$ZIP" ]; then
             echo "ERROR: ZIP file not found: $ZIP"
-            echo "Make sure the ZIP file is in the repository root."
             exit 1
           fi
 
           mkdir -p work
           unzip -q "$ZIP" -d work
 
-          PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
+          PACKAGE_FILE="$(find work \
+            -name package.json \
+            -not -path '*/node_modules/*' \
+            -print -quit)"
 
           if [ -z "$PACKAGE_FILE" ]; then
-            echo "ERROR: package.json not found inside ZIP."
+            echo "ERROR: package.json not found inside ZIP"
             exit 1
           fi
 
-          echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
+          echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" \
+            >> "$GITHUB_ENV"
 
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
@@ -86,6 +101,7 @@ jobs:
         shell: bash
         run: |
           set -e
+
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
