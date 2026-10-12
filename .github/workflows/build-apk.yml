@@ -30,32 +30,34 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        shell: bash
-        run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+        with:
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
 
       - name: Extract project
         shell: bash
         run: |
           set -e
+
           ZIP="leyh-qalha-project-upload.zip"
 
-          test -f "$ZIP" || {
-            echo "ERROR: Project ZIP not found: $ZIP"
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: ZIP file not found: $ZIP"
+            echo "Make sure the ZIP file is in the repository root."
             exit 1
-          }
+          fi
 
           mkdir -p work
           unzip -q "$ZIP" -d work
 
           PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
 
-          test -n "$PACKAGE_FILE" || {
-            echo "ERROR: package.json not found inside ZIP"
+          if [ -z "$PACKAGE_FILE" ]; then
+            echo "ERROR: package.json not found inside ZIP."
             exit 1
-          }
+          fi
 
           echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
 
@@ -63,13 +65,15 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm install --legacy-peer-deps
 
-      - name: Build APK
+      - name: Build web application
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run build
+
+      - name: Prepare Android project
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
-
-          npm run build
 
           if [ ! -f android/gradlew ]; then
             npx cap add android
@@ -77,6 +81,11 @@ jobs:
 
           npx cap sync android
 
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
