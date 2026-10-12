@@ -22,14 +22,12 @@ jobs:
           java-version: 21
       - name: Accept Android licenses
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
           SDKM=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1)
-          echo "sdkmanager=$SDKM"
           if [ -n "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
       - name: Install and build
         working-directory: ${{ env.PROJ_DIR }}
         run: |
-          npm install
+          npm install --legacy-peer-deps --no-audit --no-fund
           npm run apk
       - uses: actions/upload-artifact@v4
         with:
