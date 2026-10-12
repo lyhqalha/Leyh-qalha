@@ -1,29 +1,16 @@
 name: Build Leyh Qalha APK
 
 on:
-push:
 workflow_dispatch:
-
-permissions:
-contents: read
+push:
+branches:
+- main
 
 jobs:
 build:
 runs-on: ubuntu-latest
 steps:
-- name: Checkout repository
-uses: actions/checkout@v4
-
-  - name: Extract project
-    run: |
-      set -e
-      ZIP="leyh-qalha-project-upload.zip"
-      test -f "$ZIP" || { echo "ZIP not found: $ZIP"; exit 1; }
-      mkdir -p work
-      unzip -q "$ZIP" -d work
-      PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
-      test -n "$PACKAGE_FILE" || { echo "package.json not found"; exit 1; }
-      echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
+- uses: actions/checkout@v4
 
   - uses: actions/setup-node@v4
     with:
@@ -35,11 +22,20 @@ uses: actions/checkout@v4
       java-version: '21'
 
   - uses: android-actions/setup-android@v3
-    with:
-      packages: |
-        platform-tools
-        platforms;android-35
-        build-tools;35.0.0
+
+  - name: Install Android SDK packages
+    shell: bash
+    run: |
+      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+  - name: Extract project
+    shell: bash
+    run: |
+      set -e
+      unzip -q leyh-qalha-project-upload.zip -d work
+      PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
+      test -n "$PACKAGE_FILE"
+      echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
 
   - name: Install dependencies
     working-directory: ${{ env.PROJECT_DIR }}
@@ -47,11 +43,11 @@ uses: actions/checkout@v4
 
   - name: Build APK
     working-directory: ${{ env.PROJECT_DIR }}
+    shell: bash
     run: |
       set -e
-      if [ ! -f android/gradlew ]; then
-        npx cap add android
-      fi
+      npm run build
+      npx cap add android
       npx cap sync android
       cd android
       chmod +x gradlew
