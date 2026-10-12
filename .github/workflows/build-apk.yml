@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download repository files
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Extract project ZIP
@@ -44,6 +44,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools,platforms;android-35,build-tools;35.0.0'
 
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
@@ -53,17 +55,17 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm run build
 
-      - name: Check Android project
+      - name: Verify Android project
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          if [ ! -d android ]; then
-            echo "Android project is missing. Cannot build APK from this source as-is."
+          test -d android || {
+            echo "Android project folder is missing."
             exit 1
-          fi
-          if [ ! -f android/gradlew ]; then
+          }
+          test -f android/gradlew || {
             echo "Gradle wrapper is missing."
             exit 1
-          fi
+          }
 
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}/android
