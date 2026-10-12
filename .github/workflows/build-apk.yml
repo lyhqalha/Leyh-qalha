@@ -1,131 +1,27 @@
-name: Build Leyh Qalha APK
-
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: read
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Install Android SDK packages
-        shell: bash
-        run: |
-          set -e
-
-          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" \
-            -type f -name sdkmanager | sort -V | tail -n 1)"
-
-          if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found"
-            exit 1
-          fi
-
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
-
-          "$SDKMANAGER" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
-
-      - name: Extract project
-        shell: bash
-        run: |
-          set -e
-
-          ZIP="leyh-qalha-project-upload.zip"
-
-          if [ ! -f "$ZIP" ]; then
-            echo "ERROR: Project ZIP not found: $ZIP"
-            exit 1
-          fi
-
-          mkdir -p work
-          unzip -q "$ZIP" -d work
-
-          PACKAGE_FILE="$(find work \
-            -name package.json \
-            -not -path '*/node_modules/*' \
-            -print -quit)"
-
-          if [ -z "$PACKAGE_FILE" ]; then
-            echo "ERROR: package.json not found inside ZIP"
-            exit 1
-          fi
-
-          PROJECT_DIR="$(dirname "$PACKAGE_FILE")"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Install project dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npm install --legacy-peer-deps
-
-      - name: Install Capacitor tools
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          npm install \
-            @capacitor/core \
-            @capacitor/cli \
-            @capacitor/android \
-            --legacy-peer-deps
-
-      - name: Build web application
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: npm run build
-
-      - name: Prepare Android project
+- name: Prepare Android project
         working-directory: ${{ env.PROJECT_DIR }}
         shell: bash
         run: |
           set -e
+
+          if [ -d dist ]; then
+            WEB_DIR="dist"
+          elif [ -d build ]; then
+            WEB_DIR="build"
+          elif [ -d www ]; then
+            WEB_DIR="www"
+          else
+            echo "ERROR: Web build folder not found."
+            echo "Expected dist, build, or www."
+            exit 1
+          fi
 
           if [ ! -f capacitor.config.ts ] && \
              [ ! -f capacitor.config.js ] && \
              [ ! -f capacitor.config.json ]; then
-            echo "ERROR: Capacitor configuration file is missing."
-            echo "Cannot safely create Android project without checking the app settings."
-            exit 1
+            printf '{\n  "appId": "com.leyhqalha.app",\n  "appName": "ليه قالها",\n  "webDir": "%s"\n}\n' "$WEB_DIR" \
+              > capacitor.config.json
           fi
 
-          if [ ! -f android/gradlew ]; then
-            npx cap add android
-          fi
-
+          npx cap add android
           npx cap sync android
-
-      - name: Build APK
-        working-directory: ${{ env.PROJECT_DIR }}
-        shell: bash
-        run: |
-          set -e
-
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: leyh-qalha-apk
-          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
