@@ -1,0 +1,79 @@
+
+name: Build Leyh Qalha APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'leyh-qalha-project-upload.zip'
+      - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download repository files
+        uses: actions/checkout@v4
+
+      - name: Extract project ZIP
+        run: |
+          set -e
+          test -f leyh-qalha-project-upload.zip
+          mkdir -p work
+          unzip -q leyh-qalha-project-upload.zip -d work
+          PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
+          test -n "$PACKAGE_FILE"
+          PROJECT_DIR="$(dirname "$PACKAGE_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project directory: $PROJECT_DIR"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm install --legacy-peer-deps
+
+      - name: Build web application
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm run build
+
+      - name: Check Android project
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          if [ ! -d android ]; then
+            echo "Android project is missing. Cannot build APK from this source as-is."
+            exit 1
+          fi
+          if [ ! -f android/gradlew ]; then
+            echo "Gradle wrapper is missing."
+            exit 1
+          fi
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: leyh-qalha-apk
+          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
