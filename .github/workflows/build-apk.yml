@@ -1,61 +1,89 @@
 name: Build Leyh Qalha APK
 
 on:
-workflow_dispatch:
-push:
-branches:
-- main
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
-build:
-runs-on: ubuntu-latest
-steps:
-- uses: actions/checkout@v4
+  build:
+    runs-on: ubuntu-latest
 
-  - name: Set up Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: '22'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Set up Java
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: '21'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-  - name: Set up Android
-    uses: android-actions/setup-android@v3
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
-  - name: Install SDK packages
-    run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-  - name: Extract project
-    shell: bash
-    run: |
-      set -e
-      unzip -q leyh-qalha-project-upload.zip -d work
-      PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
-      test -n "$PACKAGE_FILE" || { echo "package.json not found"; exit 1; }
-      echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-  - name: Install dependencies
-    working-directory: ${{ env.PROJECT_DIR }}
-    run: npm install
+      - name: Extract project
+        shell: bash
+        run: |
+          set -e
+          ZIP="leyh-qalha-project-upload.zip"
 
-  - name: Build APK
-    working-directory: ${{ env.PROJECT_DIR }}
-    shell: bash
-    run: |
-      set -e
-      npm run build
-      npx cap sync android
-      cd android
-      chmod +x gradlew
-      ./gradlew assembleDebug
+          test -f "$ZIP" || {
+            echo "ERROR: Project ZIP not found: $ZIP"
+            exit 1
+          }
 
-  - name: Upload APK
-    uses: actions/upload-artifact@v4
-    with:
-      name: leyh-qalha-apk
-      path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
-      if-no-files-found: error
+          mkdir -p work
+          unzip -q "$ZIP" -d work
+
+          PACKAGE_FILE="$(find work -name package.json -not -path '*/node_modules/*' -print -quit)"
+
+          test -n "$PACKAGE_FILE" || {
+            echo "ERROR: package.json not found inside ZIP"
+            exit 1
+          }
+
+          echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm install --legacy-peer-deps
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: |
+          set -e
+
+          npm run build
+
+          if [ ! -f android/gradlew ]; then
+            npx cap add android
+          fi
+
+          npx cap sync android
+
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: leyh-qalha-apk
+          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
