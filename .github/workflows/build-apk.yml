@@ -13,6 +13,28 @@ jobs:
           mkdir work
           for f in part*.zip; do unzip -q -o "$f" -d work; done
           echo "PROJ_DIR=work" >> "$GITHUB_ENV"
+      - name: Use JSON capacitor config
+        working-directory: ${{ env.PROJ_DIR }}
+        run: |
+          rm -f capacitor.config.ts
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.lehqalha.app",
+            "appName": "ليه قالها؟",
+            "webDir": "dist",
+            "backgroundColor": "#0D131F",
+            "android": {
+              "adjustMarginsForEdgeToEdge": "disable",
+              "allowMixedContent": false
+            },
+            "plugins": {
+              "LocalNotifications": {
+                "iconColor": "#E2B773",
+                "sound": "hadith_tone.wav"
+              }
+            }
+          }
+          EOF
       - uses: actions/setup-node@v4
         with:
           node-version: 22
