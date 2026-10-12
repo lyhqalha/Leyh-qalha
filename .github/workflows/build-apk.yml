@@ -56,7 +56,7 @@ jobs:
           ZIP="leyh-qalha-project-upload.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERROR: ZIP file not found: $ZIP"
+            echo "ERROR: Project ZIP not found: $ZIP"
             exit 1
           fi
 
@@ -73,12 +73,21 @@ jobs:
             exit 1
           fi
 
-          echo "PROJECT_DIR=$(dirname "$PACKAGE_FILE")" \
-            >> "$GITHUB_ENV"
+          PROJECT_DIR="$(dirname "$PACKAGE_FILE")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Install dependencies
+      - name: Install project dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm install --legacy-peer-deps
+
+      - name: Install Capacitor tools
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          npm install \
+            @capacitor/core \
+            @capacitor/cli \
+            @capacitor/android \
+            --legacy-peer-deps
 
       - name: Build web application
         working-directory: ${{ env.PROJECT_DIR }}
@@ -89,6 +98,14 @@ jobs:
         shell: bash
         run: |
           set -e
+
+          if [ ! -f capacitor.config.ts ] && \
+             [ ! -f capacitor.config.js ] && \
+             [ ! -f capacitor.config.json ]; then
+            echo "ERROR: Capacitor configuration file is missing."
+            echo "Cannot safely create Android project without checking the app settings."
+            exit 1
+          fi
 
           if [ ! -f android/gradlew ]; then
             npx cap add android
